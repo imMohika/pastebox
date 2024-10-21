@@ -2,7 +2,7 @@ package web
 
 import "net/http"
 
-func (s *Server) Routes() *http.ServeMux {
+func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /{$}", s.home)
@@ -14,5 +14,9 @@ func (s *Server) Routes() *http.ServeMux {
 	mux.Handle("/static", http.NotFoundHandler())
 	mux.Handle("GET /static/", http.StripPrefix("/static", fileServer))
 
-	return mux
+	handler := commonHeaders(mux)
+	handler = s.logRequest(handler)
+	handler = s.panicRecover(handler)
+
+	return handler
 }
