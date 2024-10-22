@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"database/sql"
 	_ "embed"
 	"errors"
@@ -28,16 +29,17 @@ var ddl string
 func main() {
 	addr := flag.String("addr", ":8080", "http service address")
 	dsn := flag.String("dsn", ":memory:", "SQLITE data source name")
+	useTls := flag.Bool("useTls", true, "enable TLS")
 	flag.Parse()
 
 	ctx := context.Background()
-	if err := run(ctx, os.Stdout, *addr, *dsn); err != nil {
+	if err := run(ctx, os.Stdout, *addr, *dsn, *useTls); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context, writer io.Writer, addr string, dsn string) error {
+func run(ctx context.Context, writer io.Writer, addr string, dsn string, useTls bool) error {
 	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
@@ -57,6 +59,9 @@ func run(ctx context.Context, writer io.Writer, addr string, dsn string) error {
 	sessionManager := scs.New()
 	sessionManager.Store = sqlite3store.New(db)
 	sessionManager.Lifetime = 24 * time.Hour
+	if useTls {
+		sessionManager.Cookie.Secure = true
+	}
 
 	templateCache, err := web.NewTemplateCache()
 	if err != nil {
@@ -71,18 +76,29 @@ func run(ctx context.Context, writer io.Writer, addr string, dsn string) error {
 		SessionManager: sessionManager,
 	}
 
+	tlsConfig := &tls.Config{
+		CurvePreferences: []tls.CurveID{tls.X25519, tls.CurveP256},
+	}
+
 	httpServer := &http.Server{
 		Addr:              addr,
 		ReadHeaderTimeout: 3 * time.Second,
 		Handler:           server.Routes(),
 		ErrorLog:          slog.NewLogLogger(logger.Handler(), slog.LevelError),
+		TLSConfig:         tlsConfig,
 	}
 
 	errChan := make(chan error, 1)
 	go func() {
 		logger.InfoContext(ctx, "server started", "addr", addr)
-		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errChan <- err
+		if useTls {
+			if err := httpServer.ListenAndServeTLS("useTls/cert.pem", "useTls/key.pem"); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				errChan <- err
+			}
+		} else {
+			if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				errChan <- err
+			}
 		}
 	}()
 
