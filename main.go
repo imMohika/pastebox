@@ -83,6 +83,9 @@ func run(ctx context.Context, writer io.Writer, addr string, dsn string, useTls 
 	httpServer := &http.Server{
 		Addr:              addr,
 		ReadHeaderTimeout: 3 * time.Second,
+		IdleTimeout:       time.Minute,
+		ReadTimeout:       5 * time.Second,
+		WriteTimeout:      10 * time.Second,
 		Handler:           server.Routes(),
 		ErrorLog:          slog.NewLogLogger(logger.Handler(), slog.LevelError),
 		TLSConfig:         tlsConfig,
