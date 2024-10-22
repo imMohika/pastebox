@@ -95,7 +95,7 @@ func run(ctx context.Context, writer io.Writer, addr string, dsn string, useTls 
 	go func() {
 		logger.InfoContext(ctx, "server started", "addr", addr)
 		if useTls {
-			if err := httpServer.ListenAndServeTLS("useTls/cert.pem", "useTls/key.pem"); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			if err := httpServer.ListenAndServeTLS("tls/cert.pem", "tls/key.pem"); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				errChan <- err
 			}
 		} else {
