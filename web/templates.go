@@ -9,6 +9,7 @@ import (
 type templateData struct {
 	Snippet  database.Snippet
 	Snippets []database.Snippet
+	Form     any
 }
 
 var functions = template.FuncMap{

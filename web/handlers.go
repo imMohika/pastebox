@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	"pastebox.mohika.ir/internal/database"
+	"pastebox.mohika.ir/internal/validator"
 	"strconv"
+	"time"
 )
 
 func (s *Server) home(writer http.ResponseWriter, request *http.Request) {
@@ -38,27 +40,79 @@ func (s *Server) snippetView(writer http.ResponseWriter, request *http.Request) 
 		return
 	}
 
-	s.render(writer, request, http.StatusOK, "home.gohtml", templateData{
+	s.render(writer, request, http.StatusOK, "snippet_view.gohtml", templateData{
 		Snippet: snippet,
 	})
 }
 
-func (s *Server) snippetCreate(writer http.ResponseWriter, _ *http.Request) {
-	writer.Write([]byte("form"))
+func (s *Server) snippetCreate(writer http.ResponseWriter, request *http.Request) {
+	data := templateData{}
+	data.Form = snippetCreateForm{
+		Expires: -1,
+	}
+	s.render(writer, request, http.StatusOK, "snippet_create.gohtml", templateData{})
+}
+
+type snippetCreateForm struct {
+	Title   string
+	Content string
+	Expires int
+	validator.Validator
 }
 
 func (s *Server) snippetCreatePost(writer http.ResponseWriter, request *http.Request) {
-	title := "Meow"
-	content := "meow\nmeow\nmeow"
+	err := request.ParseForm()
+	if err != nil {
+		s.clientError(writer, http.StatusBadRequest)
+		return
+	}
+
+	expires, err := strconv.Atoi(request.PostForm.Get("expires"))
+	if err != nil {
+		s.clientError(writer, http.StatusBadRequest)
+		return
+	}
+
+	form := snippetCreateForm{
+		Title:   request.PostForm.Get("title"),
+		Content: request.PostForm.Get("content"),
+		Expires: expires,
+	}
+
+	form.CheckField(validator.NotBlank(form.Title), "title", "This field cannot be blank")
+	form.CheckField(validator.MaxChars(form.Title, 100), "title", "This field cannot be more than 100 characters long")
+	form.CheckField(validator.NotBlank(form.Content), "content", "This field cannot be blank")
+
+	if !form.Valid() {
+		data := templateData{
+			Form: form,
+		}
+		s.render(writer, request, http.StatusUnprocessableEntity, "snippet_create.gohtml", data)
+		return
+	}
+
+	var expiresTime sql.NullTime
+	if form.Expires <= 0 {
+		expiresTime = sql.NullTime{
+			Time:  time.Time{},
+			Valid: false,
+		}
+	} else {
+		expiresTime = sql.NullTime{
+			Time:  time.Now().Add(time.Duration(expires) * time.Hour * 24),
+			Valid: true,
+		}
+	}
 
 	id, err := s.Queries.CreateSnippet(s.Ctx, database.CreateSnippetParams{
-		Title:   title,
-		Content: content,
+		Title:   form.Title,
+		Content: form.Content,
+		Expires: expiresTime,
 	})
 	if err != nil {
 		s.serverError(writer, request, err)
 		return
 	}
 
-	http.RedirectHandler(fmt.Sprintf("/snippet/view/%d", id), http.StatusSeeOther)
+	http.Redirect(writer, request, fmt.Sprintf("/snippet/view/%d", id), http.StatusSeeOther)
 }
