@@ -2,6 +2,7 @@ package web
 
 import (
 	"html/template"
+	"net/http"
 	"pastebox.mohika.ir/internal/database"
 	"path/filepath"
 )
@@ -10,10 +11,17 @@ type templateData struct {
 	Snippet  database.Snippet
 	Snippets []database.Snippet
 	Form     any
+	Flash    string
 }
 
 var functions = template.FuncMap{
 	"humanDate": humanDate,
+}
+
+func (s *Server) newTemplatedata(request *http.Request) templateData {
+	return templateData{
+		Flash: s.SessionManager.PopString(request.Context(), "flash"),
+	}
 }
 
 func NewTemplateCache() (map[string]*template.Template, error) {

@@ -18,9 +18,10 @@ func (s *Server) home(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	s.render(writer, request, http.StatusOK, "home.gohtml", templateData{
-		Snippets: snippets,
-	})
+	data := s.newTemplatedata(request)
+	data.Snippets = snippets
+
+	s.render(writer, request, http.StatusOK, "home.gohtml", data)
 }
 
 func (s *Server) snippetView(writer http.ResponseWriter, request *http.Request) {
@@ -40,17 +41,19 @@ func (s *Server) snippetView(writer http.ResponseWriter, request *http.Request) 
 		return
 	}
 
-	s.render(writer, request, http.StatusOK, "snippet_view.gohtml", templateData{
-		Snippet: snippet,
-	})
+	data := s.newTemplatedata(request)
+	data.Snippet = snippet
+
+	s.render(writer, request, http.StatusOK, "snippet_view.gohtml", data)
 }
 
 func (s *Server) snippetCreate(writer http.ResponseWriter, request *http.Request) {
-	data := templateData{}
+	data := s.newTemplatedata(request)
 	data.Form = snippetCreateForm{
 		Expires: -1,
 	}
-	s.render(writer, request, http.StatusOK, "snippet_create.gohtml", templateData{})
+
+	s.render(writer, request, http.StatusOK, "snippet_create.gohtml", data)
 }
 
 type snippetCreateForm struct {
@@ -84,9 +87,8 @@ func (s *Server) snippetCreatePost(writer http.ResponseWriter, request *http.Req
 	form.CheckField(validator.NotBlank(form.Content), "content", "This field cannot be blank")
 
 	if !form.Valid() {
-		data := templateData{
-			Form: form,
-		}
+		data := s.newTemplatedata(request)
+		data.Form = form
 		s.render(writer, request, http.StatusUnprocessableEntity, "snippet_create.gohtml", data)
 		return
 	}
@@ -113,6 +115,8 @@ func (s *Server) snippetCreatePost(writer http.ResponseWriter, request *http.Req
 		s.serverError(writer, request, err)
 		return
 	}
+
+	s.SessionManager.Put(request.Context(), "flash", "Snippet successfully created")
 
 	http.Redirect(writer, request, fmt.Sprintf("/snippet/view/%d", id), http.StatusSeeOther)
 }

@@ -7,6 +7,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/alexedwards/scs/sqlite3store"
+	"github.com/alexedwards/scs/v2"
 	"io"
 	"log/slog"
 	"net/http"
@@ -52,16 +54,21 @@ func run(ctx context.Context, writer io.Writer, addr string, dsn string) error {
 	}
 	queries := database.New(db)
 
+	sessionManager := scs.New()
+	sessionManager.Store = sqlite3store.New(db)
+	sessionManager.Lifetime = 24 * time.Hour
+
 	templateCache, err := web.NewTemplateCache()
 	if err != nil {
 		return err
 	}
 
 	server := &web.Server{
-		Logger:        logger,
-		Queries:       queries,
-		Ctx:           ctx,
-		TemplateCache: templateCache,
+		Logger:         logger,
+		Queries:        queries,
+		Ctx:            ctx,
+		TemplateCache:  templateCache,
+		SessionManager: sessionManager,
 	}
 
 	httpServer := &http.Server{
