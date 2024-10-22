@@ -75,6 +75,7 @@ func run(ctx context.Context, writer io.Writer, addr string, dsn string) error {
 		Addr:              addr,
 		ReadHeaderTimeout: 3 * time.Second,
 		Handler:           server.Routes(),
+		ErrorLog:          slog.NewLogLogger(logger.Handler(), slog.LevelError),
 	}
 
 	errChan := make(chan error, 1)
